@@ -31,6 +31,6 @@ class ClassCylinder:
 
 cylinder = ClassCylinder((0, 200, 0),7,10)
 
-print(cylinder.len_points)
+
 
 

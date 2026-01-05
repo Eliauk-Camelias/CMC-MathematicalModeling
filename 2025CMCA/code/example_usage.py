@@ -1,331 +1,347 @@
 """
-遗传算法使用示例
-展示如何使用高度解耦的遗传算法框架
+遗传算法模板使用示例
 """
 
-from genetic_algorithm import (
-    GeneticAlgorithm,
-    FitnessFunction,
-    InitializationFunction,
-    PenaltyFunction,
-    DefaultInitialization,
-    NoPenalty,
-    TournamentSelection,
-    RouletteWheelSelection,
-    UniformCrossover,
-    SinglePointCrossover,
-    ArithmeticCrossover,
-    GaussianMutation,
-    UniformMutation
-)
-import random
-import numpy as np
+from genetic_algorithm import GeneticAlgorithm
 
 
-# ==================== 示例1: 简单的二次函数优化 ====================
-class QuadraticFitness(FitnessFunction):
-    """二次函数适应度: f(x, y) = -(x^2 + y^2)，求最小值（负号转为最大化）"""
-    
-    def evaluate(self, individual):
-        x, y = individual
-        return -(x**2 + y**2)
-
-
-def example1_simple_optimization():
+# 示例1: 简单的无约束优化问题
+def example1():
+    """最小化 f(x, y) = x^2 + y^2, 其中 x, y ∈ [-1, 1]"""
     print("=" * 60)
-    print("示例1: 优化二次函数 f(x, y) = -(x^2 + y^2)")
+    print("示例1: 最小化 f(x, y) = x^2 + y^2 (无约束)")
     print("=" * 60)
     
-    # 定义数据范围
-    bounds = [(-5, 5), (-5, 5)]
-    
-    # 创建组件
-    fitness_func = QuadraticFitness()
-    init_func = DefaultInitialization(bounds, gene_type='float')
-    
-    # 创建遗传算法
-    ga = GeneticAlgorithm(
-        fitness_function=fitness_func,
-        initialization_function=init_func,
-        mutation_strategy=GaussianMutation(mutation_rate=0.1, mutation_strength=0.2, bounds=bounds),
-        crossover_strategy=ArithmeticCrossover(alpha=0.5),
-        selection_strategy=TournamentSelection(tournament_size=3),
-        crossover_probability=0.8,
-        elitism_count=2
-    )
-    
-    # 运行算法
-    best_individual, best_fitness = ga.run(
-        generations=50,
-        population_size=50
-    )
-    
-    print(f"\n最优解: x = {best_individual[0]:.4f}, y = {best_individual[1]:.4f}")
-    print(f"理论最优: x = 0, y = 0")
-    print()
-
-
-# ==================== 示例2: 自定义初始化函数 ====================
-class CustomInitialization(InitializationFunction):
-    """自定义初始化：在特定区域生成初始种群"""
-    
-    def initialize(self, population_size):
-        population = []
-        for _ in range(population_size):
-            # 在特定区域生成个体
-            x = random.uniform(2, 4)  # x在[2, 4]范围内
-            y = random.uniform(-3, -1)  # y在[-3, -1]范围内
-            population.append([x, y])
-        return population
-
-
-def example2_custom_initialization():
-    print("=" * 60)
-    print("示例2: 使用自定义初始化函数")
-    print("=" * 60)
-    
-    bounds = [(-5, 5), (-5, 5)]
-    fitness_func = QuadraticFitness()
-    init_func = CustomInitialization()
+    def fitness_function(vars_dict):
+        x = vars_dict["x"]
+        y = vars_dict["y"]
+        return x**2 + y**2
     
     ga = GeneticAlgorithm(
-        fitness_function=fitness_func,
-        initialization_function=init_func,
-        mutation_strategy=GaussianMutation(mutation_rate=0.15, mutation_strength=0.3, bounds=bounds),
-        crossover_strategy=UniformCrossover(crossover_rate=0.5),
-        elitism_count=1
+        variable_ranges={"x": (-1, 1), "y": (-1, 1)},
+        fitness_function=fitness_function,
+        population_size=50,
+        max_generations=100,
+        verbose=True
     )
     
-    best_individual, best_fitness = ga.run(
-        generations=30,
-        population_size=40
-    )
-    
-    print(f"\n最优解: {best_individual}")
-    print()
+    best, fitness = ga.run()
+    print(f"\n最优解: x={best['x']:.6f}, y={best['y']:.6f}")
+    print(f"最优适应度: {fitness:.6f}\n")
 
 
-# ==================== 示例3: 自定义惩罚函数 ====================
-class ConstraintPenalty(PenaltyFunction):
-    """约束惩罚：x + y >= 1"""
-    
-    def apply(self, individual, fitness):
-        x, y = individual
-        violation = max(0, 1 - (x + y))  # 违反约束的程度
-        penalty = -1000 * violation  # 惩罚系数
-        return fitness + penalty
-
-
-class ConstrainedFitness(FitnessFunction):
-    """带约束的适应度函数"""
-    
-    def evaluate(self, individual):
-        x, y = individual
-        return -(x**2 + y**2)
-
-
-def example3_custom_penalty():
+# 示例2: 使用约束函数（硬约束）
+def example2():
+    """最小化 f(x, y) = x^2 + y^2, 约束条件: x + y >= 0.5"""
     print("=" * 60)
-    print("示例3: 使用自定义惩罚函数 (约束: x + y >= 1)")
+    print("示例2: 带硬约束条件 x + y >= 0.5")
     print("=" * 60)
     
-    bounds = [(-5, 5), (-5, 5)]
-    fitness_func = ConstrainedFitness()
-    penalty_func = ConstraintPenalty()
-    init_func = DefaultInitialization(bounds, gene_type='float')
+    def fitness_function(vars_dict):
+        x = vars_dict["x"]
+        y = vars_dict["y"]
+        return x**2 + y**2
+    
+    def constraint_function(vars_dict):
+        """返回True表示满足约束，False表示不满足"""
+        x = vars_dict["x"]
+        y = vars_dict["y"]
+        return x + y >= 0.5
     
     ga = GeneticAlgorithm(
-        fitness_function=fitness_func,
-        initialization_function=init_func,
-        penalty_function=penalty_func,
-        mutation_strategy=GaussianMutation(mutation_rate=0.1, mutation_strength=0.2, bounds=bounds),
-        crossover_strategy=ArithmeticCrossover(),
-        elitism_count=2
+        variable_ranges={"x": (-1, 1), "y": (-1, 1)},
+        fitness_function=fitness_function,
+        constraint_function=constraint_function,  # 约束函数
+        population_size=50,
+        max_generations=100,
+        verbose=True
     )
     
-    best_individual, best_fitness = ga.run(
-        generations=50,
-        population_size=50
-    )
-    
-    x, y = best_individual
-    print(f"\n最优解: x = {x:.4f}, y = {y:.4f}")
-    print(f"约束检查 (x + y >= 1): {x + y:.4f} >= 1? {x + y >= 1}")
-    print()
+    best, fitness = ga.run()
+    print(f"\n最优解: x={best['x']:.6f}, y={best['y']:.6f}")
+    print(f"最优适应度: {fitness:.6f}")
+    print(f"约束检查: x + y = {best['x'] + best['y']:.6f} >= 0.5 ✓\n")
 
 
-# ==================== 示例4: Rastrigin函数优化（多模态函数）====================
-class RastriginFitness(FitnessFunction):
-    """Rastrigin函数：经典的多模态优化问题"""
-    
-    def __init__(self, n_dimensions=2):
-        self.n_dimensions = n_dimensions
-    
-    def evaluate(self, individual):
-        A = 10
-        n = len(individual)
-        return -(A * n + sum(x**2 - A * np.cos(2 * np.pi * x) for x in individual))
-
-
-def example4_rastrigin():
+# 示例3: 使用惩罚函数（软约束）
+def example3():
+    """使用惩罚函数处理约束条件"""
     print("=" * 60)
-    print("示例4: Rastrigin函数优化（多模态优化问题）")
+    print("示例3: 使用惩罚函数处理约束 x + y >= 0.5")
     print("=" * 60)
     
-    bounds = [(-5.12, 5.12), (-5.12, 5.12)]
-    fitness_func = RastriginFitness(n_dimensions=2)
-    init_func = DefaultInitialization(bounds, gene_type='float')
+    def fitness_function(vars_dict):
+        x = vars_dict["x"]
+        y = vars_dict["y"]
+        return x**2 + y**2
     
-    ga = GeneticAlgorithm(
-        fitness_function=fitness_func,
-        initialization_function=init_func,
-        selection_strategy=TournamentSelection(tournament_size=5),
-        crossover_strategy=ArithmeticCrossover(alpha=0.6),
-        mutation_strategy=GaussianMutation(mutation_rate=0.2, mutation_strength=0.3, bounds=bounds),
-        crossover_probability=0.9,
-        elitism_count=3
-    )
-    
-    best_individual, best_fitness = ga.run(
-        generations=100,
-        population_size=100
-    )
-    
-    print(f"\n最优解: {[f'{x:.4f}' for x in best_individual]}")
-    print(f"理论最优: [0, 0]")
-    print()
-
-
-# ==================== 示例5: 完整自定义所有组件 ====================
-class CustomFitness(FitnessFunction):
-    """
-    自定义适应度函数：优化3维复杂函数
-    
-    适应度函数：f(x, y, z) = -(x² + y² + z² + x*y + y*z)
-    - 这是一个3维优化问题，目标是找到使函数值最小（即适应度最大）的点
-    - 使用负号将最小化问题转换为最大化问题（适应度越大越好）
-    - 函数包含二次项和交叉项，形成复杂的优化曲面
-    - 理论最优解应该在原点附近（具体取决于交叉项的权重）
-    """
-    
-    def evaluate(self, individual):
+    def penalty_function(vars_dict, raw_fitness):
         """
-        评估个体的适应度
-        
-        Args:
-            individual: 个体，包含3个基因值 [x, y, z]
-            
-        Returns:
-            float: 适应度值（负数，值越大表示函数值越小，即越好）
+        惩罚函数
+        参数:
+            vars_dict: 变量字典
+            raw_fitness: 原始适应度值
+        返回:
+            惩罚后的适应度值
         """
-        x, y, z = individual
-        # 计算函数值并取负（因为遗传算法是最大化适应度，而我们要最小化函数值）
-        return -(x**2 + y**2 + z**2 + x*y + y*z)
-
-
-class CustomInit3D(InitializationFunction):
-    """
-    自定义3维初始化函数
+        x = vars_dict["x"]
+        y = vars_dict["y"]
+        penalty = 0
+        # 如果 x + y < 0.5，添加惩罚
+        if x + y < 0.5:
+            penalty = 100 * (0.5 - (x + y))**2
+        return raw_fitness + penalty
     
-    在3维空间 [-3, 3] × [-3, 3] × [-3, 3] 范围内均匀随机生成初始种群
-    这种方式可以：
-    - 覆盖整个搜索空间
-    - 提供多样化的初始解
-    - 避免初始种群过于集中在某个区域
-    """
-    
-    def initialize(self, population_size):
-        """
-        初始化第一代种群
-        
-        Args:
-            population_size: 种群大小，即需要生成的个体数量
-            
-        Returns:
-            List[List[float]]: 初始种群列表，每个个体包含3个随机生成的基因值
-        """
-        # 为每个个体生成3个在 [-3, 3] 范围内的随机浮点数
-        # 外层循环：生成 population_size 个个体
-        # 内层循环：为每个个体生成3个基因值
-        return [[random.uniform(-3, 3) for _ in range(3)] for _ in range(population_size)]
-
-
-def example5_full_customization():
-    """
-    示例5：完全自定义所有组件（3维优化）
-    
-    本示例展示了如何使用框架的所有自定义功能：
-    1. 自定义适应度函数（3维复杂函数优化）
-    2. 自定义初始化函数（3维空间随机生成）
-    3. 自定义选择策略（轮盘赌选择）
-    4. 自定义交叉策略（单点交叉）
-    5. 自定义变异策略（均匀变异）
-    6. 完全控制算法参数（代数、种群大小等）
-    """
-    print("=" * 60)
-    print("示例5: 完全自定义所有组件（3维优化）")
-    print("=" * 60)
-    
-    # 定义每个基因的搜索范围：[x范围, y范围, z范围]
-    # 每个基因的取值范围都是 [-3, 3]
-    bounds = [(-3, 3), (-3, 3), (-3, 3)]
-    
-    # 创建自定义适应度函数实例
-    fitness_func = CustomFitness()
-    
-    # 创建自定义初始化函数实例
-    init_func = CustomInit3D()
-    
-    # 创建遗传算法实例，完全自定义所有组件
     ga = GeneticAlgorithm(
-        # 必需参数：适应度函数（自定义的3维函数优化）
-        fitness_function=fitness_func,
-        
-        # 必需参数：初始化函数（自定义的3维随机初始化）
-        initialization_function=init_func,
-        
-        # 可选参数：选择策略 - 轮盘赌选择（按适应度比例选择）
-        # 适应度越高的个体被选中的概率越大
-        selection_strategy=RouletteWheelSelection(),
-        
-        # 可选参数：交叉策略 - 单点交叉
-        # 在随机选择一个交叉点，交换两个父代在该点之后的所有基因
-        crossover_strategy=SinglePointCrossover(),
-        
-        # 可选参数：变异策略 - 均匀变异
-        # mutation_rate=0.15: 每个基因有15%的概率发生变异
-        # bounds=bounds: 变异后的值会被限制在定义范围内
-        mutation_strategy=UniformMutation(mutation_rate=0.15, bounds=bounds),
-        
-        # 交叉概率：75% 的概率执行交叉操作
-        # 如果随机数 < 0.75，则对选中的父代进行交叉；否则直接复制父代
-        crossover_probability=0.75,
-        
-        # 变异概率：10%（如果mutation_strategy有自己的概率，此参数可能被忽略）
-        # 在本例中，UniformMutation已经定义了mutation_rate=0.15，所以实际使用0.15
-        mutation_probability=0.1,
-        
-        # 精英保留数量：每代保留2个最优秀的个体直接进入下一代
-        # 这可以确保算法不会丢失当前找到的最佳解
-        elitism_count=2
+        variable_ranges={"x": (-1, 1), "y": (-1, 1)},
+        fitness_function=fitness_function,
+        penalty_function=penalty_function,  # 惩罚函数
+        population_size=50,
+        max_generations=100,
+        verbose=True
     )
     
-    # 运行遗传算法
-    best_individual, best_fitness = ga.run(
-        generations=60,      # 进化60代
-        population_size=80   # 每代种群包含80个个体
+    best, fitness = ga.run()
+    print(f"\n最优解: x={best['x']:.6f}, y={best['y']:.6f}")
+    print(f"最优适应度: {fitness:.6f}")
+    print(f"约束检查: x + y = {best['x'] + best['y']:.6f}\n")
+
+
+# 示例4: 多变量复杂优化问题
+def example4():
+    """优化函数 f(x, y, z) = x^2 + y^2 + z^2 + x*y, 约束: x + y + z = 1"""
+    print("=" * 60)
+    print("示例4: 多变量优化 f(x,y,z) = x^2+y^2+z^2+x*y, 约束: x+y+z=1")
+    print("=" * 60)
+    
+    def fitness_function(vars_dict):
+        x = vars_dict["x"]
+        y = vars_dict["y"]
+        z = vars_dict["z"]
+        return x**2 + y**2 + z**2 + x * y
+    
+    def constraint_function(vars_dict):
+        x = vars_dict["x"]
+        y = vars_dict["y"]
+        z = vars_dict["z"]
+        # 允许一定误差
+        return abs(x + y + z - 1) < 0.01
+    
+    ga = GeneticAlgorithm(
+        variable_ranges={
+            "x": (-2, 2),
+            "y": (-2, 2),
+            "z": (-2, 2)
+        },
+        fitness_function=fitness_function,
+        constraint_function=constraint_function,
+        population_size=100,
+        max_generations=150,
+        verbose=True
     )
     
-    # 输出结果：最优解（3维坐标）保留4位小数
-    print(f"\n最优解: {[f'{x:.4f}' for x in best_individual]}")
-    print()
+    best, fitness = ga.run()
+    print(f"\n最优解: x={best['x']:.6f}, y={best['y']:.6f}, z={best['z']:.6f}")
+    print(f"最优适应度: {fitness:.6f}")
+    print(f"约束检查: x + y + z = {best['x'] + best['y'] + best['z']:.6f} ≈ 1\n")
+
+
+# 示例5: 结合约束函数和惩罚函数
+def example5():
+    """同时使用约束函数和惩罚函数"""
+    print("=" * 60)
+    print("示例5: 同时使用约束函数和惩罚函数")
+    print("=" * 60)
+    
+    def fitness_function(vars_dict):
+        x = vars_dict["x"]
+        y = vars_dict["y"]
+        return x**2 + y**2
+    
+    def constraint_function(vars_dict):
+        """硬约束：x + y >= 0.5"""
+        x = vars_dict["x"]
+        y = vars_dict["y"]
+        return x + y >= 0.5
+    
+    def penalty_function(vars_dict, raw_fitness):
+        """软惩罚：鼓励 x^2 + y^2 < 0.1"""
+        x = vars_dict["x"]
+        y = vars_dict["y"]
+        penalty = 0
+        if x**2 + y**2 > 0.1:
+            penalty = 10 * (x**2 + y**2 - 0.1)
+        return raw_fitness + penalty
+    
+    ga = GeneticAlgorithm(
+        variable_ranges={"x": (-1, 1), "y": (-1, 1)},
+        fitness_function=fitness_function,
+        constraint_function=constraint_function,
+        penalty_function=penalty_function,
+        population_size=50,
+        max_generations=100,
+        verbose=True
+    )
+    
+    best, fitness = ga.run()
+    print(f"\n最优解: x={best['x']:.6f}, y={best['y']:.6f}")
+    print(f"最优适应度: {fitness:.6f}")
+    print(f"约束检查: x + y = {best['x'] + best['y']:.6f} >= 0.5 ✓\n")
+
+
+# 示例6: 使用自定义初始种群（种子）
+def example6():
+    """使用自定义初始种群 - 方式1：手动定义"""
+    print("=" * 60)
+    print("示例6a: 手动定义初始种群")
+    print("=" * 60)
+    
+    def fitness_function(vars_dict):
+        x = vars_dict["x"]
+        y = vars_dict["y"]
+        return x**2 + y**2
+    
+    # 方式1：手动定义（适用于少量种子）
+    initial_seeds = [
+        {"x": 0.1, "y": 0.1},
+        {"x": -0.2, "y": 0.15},
+        {"x": 0.05, "y": -0.1},
+        {"x": -0.1, "y": -0.05},
+    ]
+    
+    ga = GeneticAlgorithm(
+        variable_ranges={"x": (-1, 1), "y": (-1, 1)},
+        fitness_function=fitness_function,
+        population_size=50,
+        max_generations=100,
+        initial_population=initial_seeds,
+        verbose=False
+    )
+    
+    best, fitness = ga.run()
+    print(f"最优解: x={best['x']:.6f}, y={best['y']:.6f}, 适应度: {fitness:.6f}\n")
+
+
+def example6b():
+    """使用自定义初始种群 - 方式2：从点列表生成"""
+    from genetic_algorithm import create_seeds_from_points
+    
+    print("=" * 60)
+    print("示例6b: 从点列表生成初始种群")
+    print("=" * 60)
+    
+    def fitness_function(vars_dict):
+        x = vars_dict["x"]
+        y = vars_dict["y"]
+        return x**2 + y**2
+    
+    # 方式2：从点列表生成（更简洁，适合大量种子）
+    points = [
+        [0.1, 0.1],
+        [-0.2, 0.15],
+        [0.05, -0.1],
+        [-0.1, -0.05],
+        [0.2, -0.1],
+        [-0.15, 0.2],
+    ]
+    initial_seeds = create_seeds_from_points(["x", "y"], points)
+    
+    ga = GeneticAlgorithm(
+        variable_ranges={"x": (-1, 1), "y": (-1, 1)},
+        fitness_function=fitness_function,
+        population_size=50,
+        max_generations=100,
+        initial_population=initial_seeds,
+        verbose=False
+    )
+    
+    best, fitness = ga.run()
+    print(f"最优解: x={best['x']:.6f}, y={best['y']:.6f}, 适应度: {fitness:.6f}\n")
+
+
+def example6c():
+    """使用自定义初始种群 - 方式3：从numpy数组生成"""
+    import numpy as np
+    from genetic_algorithm import create_seeds_from_array
+    
+    print("=" * 60)
+    print("示例6c: 从numpy数组生成初始种群")
+    print("=" * 60)
+    
+    def fitness_function(vars_dict):
+        x = vars_dict["x"]
+        y = vars_dict["y"]
+        return x**2 + y**2
+    
+    # 方式3：从numpy数组生成（适合从数值计算中获得的结果）
+    seeds_array = np.array([
+        [0.1, 0.1],
+        [-0.2, 0.15],
+        [0.05, -0.1],
+        [-0.1, -0.05],
+    ])
+    initial_seeds = create_seeds_from_array(["x", "y"], seeds_array)
+    
+    ga = GeneticAlgorithm(
+        variable_ranges={"x": (-1, 1), "y": (-1, 1)},
+        fitness_function=fitness_function,
+        population_size=50,
+        max_generations=100,
+        initial_population=initial_seeds,
+        verbose=False
+    )
+    
+    best, fitness = ga.run()
+    print(f"最优解: x={best['x']:.6f}, y={best['y']:.6f}, 适应度: {fitness:.6f}\n")
+
+
+def example6d():
+    """使用自定义初始种群 - 方式4：在指定点周围生成随机种子"""
+    from genetic_algorithm import create_seeds_around_points
+    
+    print("=" * 60)
+    print("示例6d: 在指定点周围生成随机种子")
+    print("=" * 60)
+    
+    def fitness_function(vars_dict):
+        x = vars_dict["x"]
+        y = vars_dict["y"]
+        return x**2 + y**2
+    
+    # 方式4：在已知的好点周围生成随机种子（适合局部搜索）
+    centers = [
+        {"x": 0.1, "y": 0.1},      # 接近最优解
+        {"x": -0.2, "y": 0.15},    # 另一个好点
+    ]
+    initial_seeds = create_seeds_around_points(
+        ["x", "y"],
+        centers,
+        n_per_center=5,  # 每个中心点生成5个随机种子
+        noise_scale=0.05  # 噪声比例
+    )
+    
+    ga = GeneticAlgorithm(
+        variable_ranges={"x": (-1, 1), "y": (-1, 1)},
+        fitness_function=fitness_function,
+        population_size=50,
+        max_generations=100,
+        initial_population=initial_seeds,
+        verbose=False
+    )
+    
+    best, fitness = ga.run()
+    print(f"最优解: x={best['x']:.6f}, y={best['y']:.6f}, 适应度: {fitness:.6f}")
+    print(f"生成了 {len(initial_seeds)} 个初始种子\n")
 
 
 if __name__ == "__main__":
     # 运行所有示例
-    example1_simple_optimization()
-    example2_custom_initialization()
-    example3_custom_penalty()
-    example4_rastrigin()
-    example5_full_customization()
-
+    example1()
+    example2()
+    example3()
+    example4()
+    example5()
+    example6()   # 方式1：手动定义
+    example6b()  # 方式2：从点列表生成
+    example6c()  # 方式3：从numpy数组生成
+    example6d()  # 方式4：在指定点周围生成
