@@ -144,7 +144,8 @@ class GeneticAlgorithm:
         constraint_function: Callable[[dict[str, float]], bool] | None = None,
         elitism_count: int = 2,
         verbose: bool = True,
-        initial_population: list[dict[str, float]] | None = None
+        initial_population: list[dict[str, float]] | None = None,
+        maximize: bool = False
     ):
         """
         初始化遗传算法
@@ -161,6 +162,7 @@ class GeneticAlgorithm:
             elitism_count: 精英保留数量
             verbose: 是否打印过程信息
             initial_population: 初始种群（种子），如果提供则使用，否则随机生成
+            maximize: 是否为最大化问题，True表示最大化，False表示最小化（默认）
         """
         self.variable_ranges = variable_ranges
         self.variable_names = list(variable_ranges.keys())
@@ -174,6 +176,7 @@ class GeneticAlgorithm:
         self.elitism_count = elitism_count
         self.verbose = verbose
         self.initial_population = initial_population
+        self.maximize = maximize
         
         # 存储每代最佳适应度
         self.best_fitness_history = []
@@ -233,8 +236,11 @@ class GeneticAlgorithm:
         # 检查约束条件
         if self.constraint_function is not None:
             if not self.constraint_function(individual):
-                # 约束不满足，返回非常大的惩罚值（最小化问题）
-                return 1e10
+                # 约束不满足，返回惩罚值
+                if self.maximize:
+                    return -1e10  # 最大化问题，返回非常小的值
+                else:
+                    return 1e10   # 最小化问题，返回非常大的值
         
         # 计算原始适应度
         raw_fitness = self.fitness_function(individual)
@@ -250,7 +256,6 @@ class GeneticAlgorithm:
     def _select_parents(self, population: list[dict[str, float]], 
                        fitnesses: list[float]) -> tuple[dict[str, float], dict[str, float]]:
         """选择父代（轮盘赌选择）"""
-        # 适应度值越小越好（最小化问题），转换为选择概率
         max_fitness = max(fitnesses)
         min_fitness = min(fitnesses)
         
@@ -258,17 +263,25 @@ class GeneticAlgorithm:
         if max_fitness == min_fitness:
             return random.choice(population), random.choice(population)
         
-        # 将最小化问题转换为最大化问题（用于选择）
-        inverted_fitnesses = [max_fitness - f + (max_fitness - min_fitness) * 0.1 
-                             for f in fitnesses]
-        total_fitness = sum(inverted_fitnesses)
+        # 根据问题类型处理适应度值
+        if self.maximize:
+            # 最大化问题：适应度值越大越好，直接使用
+            # 转换为非负值用于选择
+            selection_fitnesses = [f - min_fitness + (max_fitness - min_fitness) * 0.1 
+                                  for f in fitnesses]
+        else:
+            # 最小化问题：适应度值越小越好，转换为选择概率
+            # 将最小化问题转换为最大化问题（用于选择）
+            selection_fitnesses = [max_fitness - f + (max_fitness - min_fitness) * 0.1 
+                                  for f in fitnesses]
+        total_fitness = sum(selection_fitnesses)
         
         # 选择第一个父代
         rand1 = random.uniform(0, total_fitness)
         cumsum = 0
         parent1 = population[0]
-        for i, inv_fit in enumerate(inverted_fitnesses):
-            cumsum += inv_fit
+        for i, sel_fit in enumerate(selection_fitnesses):
+            cumsum += sel_fit
             if cumsum >= rand1:
                 parent1 = population[i]
                 break
@@ -277,8 +290,8 @@ class GeneticAlgorithm:
         rand2 = random.uniform(0, total_fitness)
         cumsum = 0
         parent2 = population[0]
-        for i, inv_fit in enumerate(inverted_fitnesses):
-            cumsum += inv_fit
+        for i, sel_fit in enumerate(selection_fitnesses):
+            cumsum += sel_fit
             if cumsum >= rand2:
                 parent2 = population[i]
                 break
@@ -336,7 +349,10 @@ class GeneticAlgorithm:
         fitnesses = [self._evaluate_fitness(ind) for ind in population]
         
         # 记录最佳个体
-        best_idx = np.argmin(fitnesses)  # 最小化问题
+        if self.maximize:
+            best_idx = np.argmax(fitnesses)  # 最大化问题
+        else:
+            best_idx = np.argmin(fitnesses)  # 最小化问题
         best_individual = population[best_idx].copy()
         best_fitness = fitnesses[best_idx]
         
@@ -351,7 +367,10 @@ class GeneticAlgorithm:
             new_population = []
             
             # 精英保留
-            sorted_indices = np.argsort(fitnesses)
+            if self.maximize:
+                sorted_indices = np.argsort(fitnesses)[::-1]  # 降序排列（最大化问题）
+            else:
+                sorted_indices = np.argsort(fitnesses)  # 升序排列（最小化问题）
             for i in range(self.elitism_count):
                 new_population.append(population[sorted_indices[i]].copy())
             
@@ -376,18 +395,35 @@ class GeneticAlgorithm:
             fitnesses = [self._evaluate_fitness(ind) for ind in population]
             
             # 更新最佳个体
-            current_best_idx = np.argmin(fitnesses)
+            if self.maximize:
+                current_best_idx = np.argmax(fitnesses)
+            else:
+                current_best_idx = np.argmin(fitnesses)
             current_best_fitness = fitnesses[current_best_idx]
             
-            if current_best_fitness < best_fitness:
-                best_fitness = current_best_fitness
-                best_individual = population[current_best_idx].copy()
+            if self.maximize:
+                if current_best_fitness > best_fitness:
+                    best_fitness = current_best_fitness
+                    best_individual = population[current_best_idx].copy()
+            else:
+                if current_best_fitness < best_fitness:
+                    best_fitness = current_best_fitness
+                    best_individual = population[current_best_idx].copy()
             
             self.best_fitness_history.append(best_fitness)
             self.best_individual_history.append(best_individual.copy())
             
-            if self.verbose and generation % (self.max_generations // 10) == 0:
-                print(f"第 {generation} 代 - 最佳适应度: {best_fitness:.6f}")
+            # 输出进度信息：每10代输出一次，或者如果总代数少于50代则每代都输出
+            if self.verbose:
+                if self.max_generations <= 50:
+                    # 如果总代数较少，每代都输出
+                    print(f"第 {generation} 代 - 最佳适应度: {best_fitness:.6f}")
+                elif generation % 10 == 0:
+                    # 否则每10代输出一次
+                    print(f"第 {generation} 代 - 最佳适应度: {best_fitness:.6f}")
+                elif generation % 5 == 0:
+                    # 每5代输出一个简单的进度提示（使用\r覆盖当前行）
+                    print(f"第 {generation} 代...", end="\r", flush=True)
         
         if self.verbose:
             print("\n优化完成！")
