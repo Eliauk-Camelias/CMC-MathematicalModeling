@@ -8,8 +8,8 @@ class ClassCylinder:
         self.position = position
         self.r = r 
         self.h = h 
-        self.dx = 0.1
-        self.dz = 0.5
+        self.dx = 1
+        self.dz = 2
         self.points = self.clc_points()
         self.len_points = len(self.points)
         
@@ -30,7 +30,7 @@ class ClassCylinder:
 
 
 cylinder = ClassCylinder((0, 200, 0),7,10)
-
+print(cylinder.len_points)
 
 
 
