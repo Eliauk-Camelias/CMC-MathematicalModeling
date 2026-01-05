@@ -8,8 +8,8 @@ class ClassCylinder:
         self.position = position
         self.r = r 
         self.h = h 
-        self.dx = 1
-        self.dz = 2
+        self.dx = 2
+        self.dz = 4
         self.points = self.clc_points()
         self.len_points = len(self.points)
         
